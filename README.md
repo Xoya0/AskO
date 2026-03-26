@@ -1,4 +1,4 @@
-# AskO - Vital Anonymous Messaging App
+# AskO - Viral Anonymous Messaging App
 
 **AskO** is a viral, no-auth, link-based anonymous messaging application inspired by NGL. It allows users to receive anonymous questions and reply to them with pretty cards shared directly to Instagram Stories.
 
