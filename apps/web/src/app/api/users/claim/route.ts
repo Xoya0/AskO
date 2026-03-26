@@ -29,10 +29,16 @@ export async function POST(request: Request) {
     });
 
     if (existingUsername) {
-      return NextResponse.json(
-        { error: "Username already taken" },
-        { status: 409 }
-      );
+      // If username exists, update its deviceUuid to the current one
+      // This allows users to "log in" or recover after a reinstall
+      const updatedUser = await prisma.user.update({
+        where: { id: existingUsername.id },
+        data: { 
+            deviceUuid,
+            pushToken // Update push token as well
+        },
+      });
+      return NextResponse.json(updatedUser);
     }
 
     // Create new user

@@ -13,10 +13,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
   return {
     title: `Send ${username} an anonymous message!`,
-    description: `Click the link to send ${username} an anonymous message on NGL Clone.`,
+    description: `Click the link to send ${username} an anonymous message on AskO.`,
     openGraph: {
       title: `Send ${username} an anonymous message!`,
-      description: `Click the link to send ${username} an anonymous message on NGL Clone.`,
+      description: `Click the link to send ${username} an anonymous message on AskO.`,
       images: [`/api/og?username=${username}`], // Placeholder for dynamic OG image
     },
   };
@@ -62,7 +62,7 @@ export default async function SenderPage({ params }: Props) {
       </div>
       
       <p className="mt-8 text-white/30 text-xs">
-        built with ❤️ on NGL Clone
+        built with ❤️ on AskO
       </p>
     </div>
   );
