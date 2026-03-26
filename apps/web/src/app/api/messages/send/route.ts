@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
 import { prisma } from "api";
 import { isProfane } from "@/lib/profanity";
 import { isRateLimited } from "@/lib/rate-limit";
