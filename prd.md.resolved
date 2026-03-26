@@ -1,0 +1,138 @@
+# Product Requirements Document (PRD): Anonymous Q&A Mobile App
+
+## 1. Product Summary
+This is a downloadable mobile application (iOS/Android) inspired by NGL. It provides a frictionless, link-based anonymous messaging platform. The app allows users to quickly generate a personal inbox link based on a self-chosen username, share that link securely on social media platforms (specifically Instagram and Snapchat), and receive anonymous messages. The receiver uses the native mobile app to manage their inbox and share replies, while the sender uses a frictionless web page to submit messages without needing to download the app.
+
+## 2. Problem Statement
+Traditional social apps suffer from high onboarding friction due to sign-ups, email verifications, passwords, and OAuth integrations. Additionally, users often desire a space for uninhibited, honest feedback from their peers. This product solves both by removing the traditional login barrier (enabling instant gratification via a device-bound session) and providing an anonymous communication channel that thrives on the viral loop of social media sharing. 
+
+## 3. Core Loop (VERY IMPORTANT)
+The entire product ecosystem relies on a tight, self-sustaining viral loop splitting between Native App and Web:
+1. **Creation (Native App)**: A new user downloads the app, opens it, types a desired `username`, and instantly gets a unique link (e.g., `app.com/u/username`).
+2. **Distribution (Native App -> Social)**: The user taps "Copy Link" or "Share", posting it to their Instagram Story or Snapchat, inviting anonymous questions/messages.
+3. **Engagement (Web Browser)**: Followers tap the link from the social app, landing on a simple mobile-web submission page. They type an anonymous message and hit send (no app download required for them).
+4. **Consumption (Native App)**: The original user receives a push notification, opens the mobile app, views their inbox, and reads the new messages.
+5. **Amplification (Native App -> Social)**: The user replies to a message in the app. The app generates a visually appealing "message card" image and uses the Native Share APIs to post it directly to Instagram Stories/Snapchat with the reply and link. → **Repeat.**
+
+## 4. MVP Features (STRICT)
+- **Receiver Mobile App (iOS & Android)**:
+  - Username Creation (No auth, tied to device ID/Install ID).
+  - Unique Link Generation (`/u/[username]`).
+  - Inbox System: Feed of received messages.
+  - Reply Action & Native Share: Generate formatted image cards (9:16 aspect ratio) for sharing to Instagram/Snapchat Stories natively.
+  - Push Notifications: Alerts when a new anonymous message arrives.
+- **Sender Web Page (Mobile Web)**:
+  - Anonymous Message Submission Page: Public-facing fast web page where visitors submit text.
+  - Upsell CTA: "Get your own anonymous messages - Download the App".
+
+## 5. System Design Constraints (CRITICAL)
+- **NO Traditional Authentication**: No emails, no passwords, no OAuth.
+- **Device-Based Session**: Identity is established via a persistent Install ID (UUID) stored securely in the device's Keychain (iOS) or EncryptedSharedPreferences (Android).
+- **First-Claim Ownership**: If a username is available, whoever claims it first owns it on that device.
+- **Secret Edit Key (Optional Recovery)**: Upon creation, optionally present the user with a recovery phrase in settings to transfer their inbox to a new phone.
+
+## 6. User Flows
+### A. Receiver Flow (The App User)
+1. **Onboarding**: Downloads app → Opens app → Enters `username` → App binds username to device UUID.
+2. **Dashboard**: App shows the user's shareable link and a "Share to IG Story" button.
+3. **Consumption**: Receives push notification → Opens app to inbox → Views new messages. 
+4. **Action**: Taps "Reply" → Types response → App generates an image card and triggers native share sheet directly to Instagram Story.
+
+### B. Sender Flow (The Public Visitor)
+1. **Discovery**: Taps link on social media (usually inside Instagram's in-app browser).
+2. **Landing**: Arrives at mobile-web page `/u/[username]`. Sees a prompt: "Send [username] an anonymous message!".
+3. **Submission**: Types text into input box → Taps "Send".
+4. **Upsell**: Sees "Sent!" confirmation, followed immediately by prominent App Store / Google Play download buttons to convert the sender into an App User.
+
+## 7. Functional Requirements
+- **Username Uniqueness Check**: Fast querying to ensure the claimed string isn't tied to an active UUID.
+- **Message Routing**: Submissions on the web API instantly route to the receiver's DB row and dispatch a Push Notification (FCM/APNs).
+- **Anti-Spam / Rate Limiting**: Limit submissions per IP/fingerprint to prevent spam loops.
+- **Native Image Generation & Sharing**: The mobile app must render a high-quality view and convert it to a bitmap, then pass it to the OS share intent specifically targeted at Instagram/Snapchat.
+- **Basic Abuse Filtering**: Run incoming text against a standard dictionary of profanity and severe toxicity.
+
+## 8. Non-Functional Requirements
+- **High Performance Web**: The sender page *must* load nearly instantly on crappy 3G connections. Minimal JS payloads.
+- **Scalability**: Backend needs to handle sudden bursts of traffic if an influencer posts their link.
+- **Privacy-First**: Do not log PII of the sender. IP hashes can be used for rate limiting but shouldn't be exposed.
+
+## 9. UX / UI Design
+- **App Aesthetic**: Extremely minimal, bright gradient backgrounds with glassmorphism message bubbles. 
+- **Web Sender Page**: Identical branding to the app, making the transition feel seamless.
+- **Empty States**: If the app inbox is empty, display a pulsating "Share your link to get messages!" prompt.
+
+## 10. Technical Architecture
+- **Mobile App**: React Native (Expo) - allows for writing one codebase for both iOS and Android, with excellent native sharing plugins (`expo-sharing`, `react-native-view-shot`).
+- **Web Frontend (Sender Page)**: Next.js or plain React (Vercel) for optimized, lightning-fast public `/u/[username]` pages.
+- **Backend / API**: Node.js (Express) or Next.js serverless functions acting as the API.
+- **Database**: PostgreSQL (via Prisma ORM).
+- **Push Notifications**: Firebase Cloud Messaging (FCM) integrated with Expo Push Notifications.
+
+## 11. Data Model (PostgreSQL / Prisma)
+**Model: User (or Profile)**
+- `id` (UUID, PK)
+- `username` (String, Unique, Indexed)
+- `deviceUuid` (String, Unique) // Stored securely on device
+- `pushToken` (String, Optional) // To send notifications
+- `createdAt` (DateTime)
+- `recoveryKey`  (String, Optional/Hashed) 
+
+**Model: Message**
+- `id` (UUID, PK)
+- `receiverId` (UUID, FK to User.id)
+- `content` (Text, max 300 chars)
+- `createdAt` (DateTime)
+- `isRead` (Boolean, default false)
+- `senderIpHash` (String) // For rate limiting only
+
+## 12. Edge Cases & Risks (IMPORTANT)
+1. **Device Switch/Loss**: If a user gets a new phone, they lose their account because it's bound to the hardware UUID.
+   - *Mitigation*: Have a hidden settings menu to "Link Device" using a pin code.
+2. **App Store Rejection (UGC Rules)**: Apple and Google strictly require block, report, and filter mechanisms for apps with user-generated content (especially anonymous apps where bullying happens).
+   - *Mitigation*: The app MUST have a "Block User" and "Report Message" button. Backend MUST pre-filter explicit curse words.
+3. **Instagram Native Share Changes**: Meta frequently updates how 3rd party apps can share to Stories.
+   - *Mitigation*: Ensure the app uses official intents (like passing the generated image to `com.instagram.share.ADD_TO_STORY` intent). If it fails, fallback to saving image to camera roll so the user can upload it manually.
+
+## 13. MVP Milestones
+- **Phase 1: Foundation (Backend & Web)**: 
+  - DB setup (PostgreSQL). 
+  - API for Username creation (using mock UUIDs) & Message submission. 
+  - Public submission web page (`/u/[user]`).
+- **Phase 2: Mobile App Foundation (React Native)**: 
+  - App setup with Expo. 
+  - Device UUID generation and secure storage.
+  - Onboarding flow (Claim username).
+- **Phase 3: Messaging & Inbox**: 
+  - App: Fetch messages from API.
+  - App: Read/Delete actions.
+  - Backend: Integrate Push Notifications for new messages.
+- **Phase 4: Viral Output & Polish**: 
+  - App: Reply interface.
+  - App: Generate view-to-image (React Native View Shot).
+  - App: Share to Instagram/Snapchat.
+  - Web: Add App Store download buttons to the sender page.
+
+## 14. Acceptance Criteria
+The MVP is "done" when:
+1. A user downloads the app, creates a username, and is routed to the inbox without providing an email or password.
+2. The user taps "Share", the native share sheet opens, and they post their unique web link to their Instagram Story.
+3. Another person clicks the link on Instagram, arrives at the web sender page, types a message, and submits it.
+4. The app user receives a push notification on their phone.
+5. The app user opens the notification, types a reply in the app, and the app generates an image and automatically opens Instagram Stories to share the reply image. 
+
+---
+
+# Execution Plan
+
+## Build Order (Step-by-Step Dev Plan)
+1. **Repository Setup**: Initialize a monolithic repo with `/apps/web` (Next.js) and `/apps/mobile` (Expo React Native), and `/packages/api` (Node backend).
+2. **Database Provisioning**: Setup PostgreSQL instance and Prisma.
+3. **Mobile: Onboarding**: Build secure UUID generation (e.g., `expo-secure-store`) and the username claim screen.
+4. **Backend: Registration API**: Handle device UUID -> Username mapping.
+5. **Backend: Message API**: Create the `/api/messages/submit` endpoint with rate-limiting.
+6. **Web: Public Page**: Build the high-performance `/u/[username]` page that posts to the Message API.
+7. **Mobile: Inbox**: Create the main feed screen to fetch and display messages securely.
+8. **Mobile: Push Notifications**: Wire up Expo Push to trigger when the Message API receives data.
+9. **Mobile: Native Sharing**: Build the Reply screen. Use `react-native-view-shot` to snapshot the UI card, and `expo-sharing` to pass it to Instagram Stories.
+10. **Backend: Abuse Filtering**: Integrate keyword filtering on all incoming messages.
+11. **Store Submission**: Prep privacy policy, EULA, and screenshots. Submit to Apple App Store (requires heavy emphasis on the "Report/Block" functionality for approval).
