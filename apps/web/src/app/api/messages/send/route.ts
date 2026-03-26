@@ -70,8 +70,8 @@ export async function POST(request: Request) {
       },
     });
 
-    // Send push notification if token exists
-    if (user.pushToken) {
+    // Send push notification if token exists and messaging is initialized
+    if (user.pushToken && messaging) {
         try {
           await messaging.send({
             token: user.pushToken,
