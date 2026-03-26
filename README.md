@@ -68,9 +68,6 @@
   npm run dev
   ```
 
-## 📸 Screenshots
-
-*(Add screenshots here manually after running the app)*
 
 ## 📄 License
 
